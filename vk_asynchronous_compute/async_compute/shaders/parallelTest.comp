@@ -1,0 +1,40 @@
+#version 460 
+//#extension GL_EXT_debug_printf : require
+#extension GL_EXT_scalar_block_layout : enable
+
+
+layout(local_size_x = 1 , local_size_y = 1, local_size_z = 1) in;
+
+
+
+layout(binding = 0, scalar) buffer a_
+{
+  int a[];
+};
+layout(binding = 1, scalar) buffer b_
+{
+  int b[];
+};
+
+void main()
+{
+    uint id=gl_GlobalInvocationID.x;
+    if(id>=200)
+      return;
+ 
+ //  if(id==100)
+//   {
+ //      debugPrintfEXT("Hello from invocation no.%d, a=%d",id,a[id] );
+//   }
+   // barrier();
+  //  memoryBarrierShared();
+
+    for (int i = 0; i < 10000000; i++)
+    {
+       // atomicAdd(b[id], a[id]);
+        b[id]=a[id]+1;
+    }
+  //  barrier();
+  //  memoryBarrierShared();
+
+}
