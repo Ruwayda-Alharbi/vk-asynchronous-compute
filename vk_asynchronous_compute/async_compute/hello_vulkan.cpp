@@ -88,6 +88,14 @@ void HelloVulkan::setup(  nvvk::Context &            vkctx)
   m_cmdPool_comp = m_device.createCommandPool(
       {vk::CommandPoolCreateFlagBits::eResetCommandBuffer, vkctx.m_queueC.familyIndex});
   computeCommandBuffer = VulkanHelper::createCommandBuffer(m_device, m_cmdPool_comp);
+
+  VkSemaphoreCreateInfo semaphoreInfo = {};
+  semaphoreInfo.sType                 = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+  if(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &submissionSemaphore) != VK_SUCCESS)
+  {
+    // Handle semaphore creation error
+  }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1078,9 +1086,9 @@ void HelloVulkan::createCompPipelines(const std::string& filename, computeData& 
 void HelloVulkan::executeComputeShaderPipline()
 {
 
-  for(int i = 0; i < m_compDataList.size(); i++)
+ // for(int i = 0; i < m_compDataList.size(); i++)
   {
-    auto compData = m_compDataList[i];
+    auto compData = m_compDataList[0];
     //nvvk::CommandPool genCmdBuf(m_device, m_compDataList[i]->queueIndex);
     /*vk::CommandBuffer cmdBuf;
 
@@ -1095,43 +1103,67 @@ void HelloVulkan::executeComputeShaderPipline()
       cmdBuf = VulkanHelper::createCommandBuffer(m_device, m_cmdPool_comp);
     }*/
 
-    computeCommandBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-    computeCommandBuffer.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+   // computeCommandBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+     computeCommandBuffer.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
     computeCommandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, compData->pipeline);
     computeCommandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute,
                                             compData->pipelineLayout, 0, {compData->descSet}, {});
     auto numOfBlocks = ceil(float(200) / 64.0f);
-    computeCommandBuffer.dispatch(1, 1, 1);
+    computeCommandBuffer.dispatch(numOfBlocks, 1, 1);
     computeCommandBuffer.end();
-    {
 
-      vk::PipelineStageFlags wait_stages = {vk::PipelineStageFlagBits::eNoneKHR};
-      vk::SubmitInfo         info        = {};
-      info.sType                         = vk::StructureType::eSubmitInfo;
-      info.pSignalSemaphores             = {};
-      info.signalSemaphoreCount          = 0;
-      info.pWaitSemaphores               = {};
-      info.waitSemaphoreCount            = 0;
-      info.pWaitDstStageMask             = &wait_stages;
-      info.commandBufferCount            = 1;
-      info.pCommandBuffers               = &computeCommandBuffer;
-
-      vkResetFences(m_device, 1, &compData->fence);
-      vkQueueSubmit(m_queue_comp, 1, reinterpret_cast<const VkSubmitInfo*>(&info),
-                      compData->fence);
-      
-    }
   }
 }
-
-bool HelloVulkan::isComputeShaderExecutionDone()
-{
-  for(auto x : m_compDataList)
+void HelloVulkan::submitComputeCommand() {
   {
-    if(vkGetFenceStatus(m_device, x->fence) != VK_SUCCESS)
+    
+    //===============================
+    VkSemaphore          waitSemaphores[] = {submissionSemaphore};
+    VkPipelineStageFlags   waitStages[]     = {VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
+    //vk::PipelineStageFlags waitStages = {vk::PipelineStageFlagBits::eTopOfPipe};
+
+    VkSubmitInfo submitInfo            = {};
+    submitInfo.sType                   = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount      = 1;
+    submitInfo.pWaitSemaphores         = waitSemaphores;
+    submitInfo.pWaitDstStageMask       = waitStages;
+    submitInfo.commandBufferCount      = 1;
+    submitInfo.pCommandBuffers         = reinterpret_cast<const VkCommandBuffer*>(&computeCommandBuffer);  //.getVkCommandBufferPtr();
+    //==========================================================
+    //vk::PipelineStageFlags wait_stages = {vk::PipelineStageFlagBits::eNoneKHR};
+    //vk::SubmitInfo         info        = {};
+    //info.sType                         = vk::StructureType::eSubmitInfo;
+    //info.pSignalSemaphores             = {};
+    //info.signalSemaphoreCount          = 0;
+    //info.pWaitSemaphores               = {};
+    //info.waitSemaphoreCount            = 0;
+    //info.pWaitDstStageMask             = &wait_stages;
+    //info.commandBufferCount            = 1;
+    //info.pCommandBuffers               = &computeCommandBuffer;
+  //  vkResetFences(m_device, 1, &m_compDataList[0]->fence);
+    if(vkQueueSubmit(m_queue_comp, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
     {
-      return false;
+      // Handle submission error
     }
+  
+   // vkQueueSubmit(m_queue_comp, 1, reinterpret_cast<const VkSubmitInfo*>(&submitInfo),
+   ///               m_compDataList[0]->fence);
   }
+
+}
+  bool HelloVulkan::isComputeShaderExecutionDone()
+{
+  //for(auto x : m_compDataList)
+  //{
+  //  if(vkGetFenceStatus(m_device, m_compDataList[0]->fence) != VK_SUCCESS)
+  //  {
+  //    return false;
+  //  }
+  //}
+  if(vkGetSemaphoreStatus(m_device, submissionSemaphore) != VK_SUCCESS)
+  {
+    return false;
+  }
+
   return true;
 }

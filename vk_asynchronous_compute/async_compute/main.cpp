@@ -280,30 +280,21 @@ int main(int argc, char** argv)
 
     // Start rendering the scene
     helloVk.prepareFrame();
-
-    if(m_runTestComputeShader && !helloVk.m_isTestComputeShaderRunning)
-    {
-      helloVk.executeComputeShaderPipline();
-      helloVk.m_isTestComputeShaderRunning = true;
-    }
-    if(helloVk.m_isTestComputeShaderRunning)
-    {
-      helloVk.m_printRenderingPerformance = true;
-      if(helloVk.isComputeShaderExecutionDone() == true)
-      {
-        std::printf( "Compute Shader Execution is Done! \n");
-        helloVk.m_isTestComputeShaderRunning = false;
-        m_runTestComputeShader       = false;
-      }
-    }
     // Start command buffer of this frame
     auto                     curFrame = helloVk.getCurFrame();
     const vk::CommandBuffer& cmdBuf   = helloVk.getCommandBuffers()[curFrame];
-
     cmdBuf.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 
     // Updating camera buffer
     helloVk.updateUniformBuffer(cmdBuf);
+    //==============================================
+    if(m_runTestComputeShader && !helloVk.m_isTestComputeShaderRunning)
+    {
+      helloVk.executeComputeShaderPipline();
+      helloVk.m_isTestComputeShaderRunning = true;
+      helloVk.m_submitComputeCommand       = true;
+    }
+    //============================================
 
     // Clearing screen
     vk::ClearValue clearValues[2];
@@ -354,7 +345,24 @@ int main(int argc, char** argv)
 
     // Submit for display
     cmdBuf.end();
+    if(helloVk.m_submitComputeCommand)
+    {
+      helloVk.submitComputeCommand();
+      clearColor  = nvmath::vec4f(1, 0, 0, 1.00f);
+      helloVk.m_submitComputeCommand = false;
+    }
     helloVk.submitFrame();
+    //=====================================
+    if(helloVk.m_isTestComputeShaderRunning)
+    {
+      // helloVk.m_printRenderingPerformance = true;
+      if(helloVk.isComputeShaderExecutionDone() == true)
+      {
+        clearColor                           = nvmath::vec4f(1, 1, 1, 1.00f);
+        helloVk.m_isTestComputeShaderRunning = false;
+        m_runTestComputeShader               = false;
+      }
+    }
   }
 
   // Cleanup
