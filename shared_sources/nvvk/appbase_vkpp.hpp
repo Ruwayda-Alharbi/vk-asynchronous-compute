@@ -27,7 +27,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-
+#include "nvvk/context_vk.hpp"
 #include "imgui.h"
 #include "imgui/backends/imgui_impl_vulkan.h"
 #include "imgui/extras/imgui_camera_widget.h"
@@ -255,8 +255,9 @@ public:
   //--------------------------------------------------------------------------------------------------
   // Setup the low level Vulkan for various operations
   //
-  virtual void setup(const vk::Instance& instance, const vk::Device& device, const vk::PhysicalDevice& physicalDevice, uint32_t graphicsQueueIndex)
+  virtual void setup(nvvk::Context& vkctx,const vk::Instance& instance, const vk::Device& device, const vk::PhysicalDevice& physicalDevice, uint32_t graphicsQueueIndex)
   {
+
     // Initialize function pointers
     vk::DynamicLoader         dl;
     PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr =
@@ -267,11 +268,37 @@ public:
     m_instance           = instance;
     m_device             = device;
     m_physicalDevice     = physicalDevice;
-    m_graphicsQueueIndex = graphicsQueueIndex;
-    m_queue              = m_device.getQueue(m_graphicsQueueIndex, 0);
-    m_cmdPool = m_device.createCommandPool({vk::CommandPoolCreateFlagBits::eResetCommandBuffer, graphicsQueueIndex});
-    m_pipelineCache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
 
+    m_graphicsQueueIndex = vkctx.m_queueGCT.familyIndex;
+    m_queue              = m_device.getQueue(vkctx.m_queueGCT.familyIndex, vkctx.m_queueGCT.queueIndex);
+    m_cmdPool = m_device.createCommandPool({vk::CommandPoolCreateFlagBits::eResetCommandBuffer, m_graphicsQueueIndex });
+
+    //+RH
+    m_computeQueueIndex = vkctx.m_queueC.familyIndex;
+    m_queue_comp = m_device.getQueue(vkctx.m_queueC.familyIndex, vkctx.m_queueC.queueIndex);
+    m_cmdPool_comp = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, m_computeQueueIndex });
+
+     //======================================
+  // * Check needed queues and create corresponding command pools.
+    //m_queue = vkctx.m_queueGCT;
+    //m_queue_comp = vkctx.m_queueC;
+
+    //m_graphicsQueueIndex = vkctx.m_queueGCT.familyIndex;
+    //m_computeQueueIndex = vkctx.m_queueC.familyIndex;
+
+    //VkCommandPoolCreateInfo poolCreateInfo{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, nullptr,
+    //                                       VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT };
+    //// Graphics command pool
+    //poolCreateInfo.queueFamilyIndex = vkctx.m_queueGCT.familyIndex;
+    //vkCreateCommandPool(vkctx.m_device, &poolCreateInfo, nullptr,
+    //    reinterpret_cast<VkCommandPool*>(&m_cmdPool));
+    //// Compute command pool
+    //poolCreateInfo.queueFamilyIndex = vkctx.m_queueC.familyIndex;
+    //vkCreateCommandPool(vkctx.m_device, &poolCreateInfo, nullptr,
+    //    reinterpret_cast<VkCommandPool*>(&m_cmdPool_comp));
+    //===========================================================================
+    //-RH
+    m_pipelineCache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
     ImGuiH::SetCameraJsonFile(PROJECT_NAME);
   }
 
@@ -302,11 +329,15 @@ public:
       m_device.destroy(m_framebuffers[i]);
       m_device.freeCommandBuffers(m_cmdPool, m_commandBuffers[i]);
     }
+   
     m_swapChain.deinit();
     m_device.destroy(m_imguiDescPool);
 
+
+    m_device.freeCommandBuffers(m_cmdPool_comp, m_commandBuffer_comp);
     m_device.destroy(m_cmdPool);
     m_device.destroy(m_cmdPool_comp);
+
     if(m_surface)
       m_instance.destroySurfaceKHR(m_surface);
 
@@ -1051,6 +1082,9 @@ public:
   vk::SurfaceKHR                        getSurface() { return m_surface; }
   const std::vector<vk::Framebuffer>&   getFramebuffers() { return m_framebuffers; }
   const std::vector<vk::CommandBuffer>& getCommandBuffers() { return m_commandBuffers; }
+  //+ RH
+  vk::CommandBuffer& getCompCommandBuffer() { return m_commandBuffer_comp; }
+  //- RH
   uint32_t                              getCurFrame() const { return m_swapChain.getActiveImageIndex(); }
   vk::Format                            getColorFormat() const { return m_colorFormat; }
   vk::Format                            getDepthFormat() const { return m_depthFormat; }
@@ -1107,6 +1141,7 @@ protected:
   nvvk::SwapChain                m_swapChain;
   std::vector<vk::Framebuffer>   m_framebuffers;      // All framebuffers, correspond to the Swapchain
   std::vector<vk::CommandBuffer> m_commandBuffers;    // Command buffer per nb element in Swapchain
+  vk::CommandBuffer m_commandBuffer_comp;
   std::vector<vk::Fence>         m_waitFences;        // Fences per nb element in Swapchain
   vk::Image                      m_depthImage;        // Depth/Stencil
   vk::DeviceMemory               m_depthMemory;       // Depth/Stencil

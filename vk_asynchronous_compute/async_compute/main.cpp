@@ -165,6 +165,7 @@ int main(int argc, char** argv)
   const vk::SurfaceKHR surface = helloVk.getVkSurface(vkctx.m_instance, window);
   vkctx.setGCTQueueWithPresent(surface);
 
+
   helloVk.setup(vkctx);
   helloVk.createSwapchain(surface, SAMPLE_WIDTH, SAMPLE_HEIGHT);
   helloVk.createDepthBuffer();
@@ -246,7 +247,8 @@ int main(int argc, char** argv)
   bool          useRaytracer = true;
 
   
-  bool m_runTestComputeShader = true;
+  bool m_runTestComputeShader = false;
+  int m_numberOfUsedQueues = 2;
   helloVk.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
 
@@ -269,7 +271,17 @@ int main(int argc, char** argv)
       ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
       if(ImGui::CollapsingHeader("Test Async Compute", ImGuiTreeNodeFlags_DefaultOpen))
       {
-        ImGui::Checkbox("Run Compute Shader", &m_runTestComputeShader);
+        ImGui::Text("Use for running Compute/Graphics cammand");
+        ImGui::RadioButton("One Queue", &m_numberOfUsedQueues, 1);
+        ImGui::SameLine();
+        ImGui::RadioButton("Two Queues", &m_numberOfUsedQueues, 2);
+        if(!m_runTestComputeShader)
+        {
+          if(ImGui::Button("Run Compute Shader"))
+          {
+            m_runTestComputeShader = true;
+          }
+        }
       }
       renderUI(helloVk);
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
@@ -277,24 +289,36 @@ int main(int argc, char** argv)
       ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
       ImGuiH::Panel::End();
     }
+   
+    //==============================================
+    const vk::CommandBuffer& cmdBuf_comp = helloVk.getCompCommandBuffer();
+    if(m_runTestComputeShader && !helloVk.m_isTestComputeShaderRunning)
+    {
+      clearColor = nvmath::vec4f(1, 0, 0, 1.00f);
+      if(m_numberOfUsedQueues == 2)
+      {
+        helloVk.executeComputeShaderPipline(cmdBuf_comp);
+        helloVk.submitComputeCommand(cmdBuf_comp);
+      }
+      else
+      {
 
+        helloVk.executeComputeShaderPipline_graphicsQueue();
+      }
+      helloVk.m_isTestComputeShaderRunning = true;
+    }
+    //============================================
     // Start rendering the scene
     helloVk.prepareFrame();
     // Start command buffer of this frame
     auto                     curFrame = helloVk.getCurFrame();
     const vk::CommandBuffer& cmdBuf   = helloVk.getCommandBuffers()[curFrame];
+    
     cmdBuf.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 
     // Updating camera buffer
     helloVk.updateUniformBuffer(cmdBuf);
-    //==============================================
-    if(m_runTestComputeShader && !helloVk.m_isTestComputeShaderRunning)
-    {
-      helloVk.executeComputeShaderPipline();
-      helloVk.m_isTestComputeShaderRunning = true;
-      helloVk.m_submitComputeCommand       = true;
-    }
-    //============================================
+
 
     // Clearing screen
     vk::ClearValue clearValues[2];
@@ -345,12 +369,6 @@ int main(int argc, char** argv)
 
     // Submit for display
     cmdBuf.end();
-    if(helloVk.m_submitComputeCommand)
-    {
-      helloVk.submitComputeCommand();
-      clearColor  = nvmath::vec4f(1, 0, 0, 1.00f);
-      helloVk.m_submitComputeCommand = false;
-    }
     helloVk.submitFrame();
     //=====================================
     if(helloVk.m_isTestComputeShaderRunning)

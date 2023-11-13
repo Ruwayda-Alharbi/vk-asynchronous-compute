@@ -50,8 +50,6 @@
 class HelloVulkan : public nvvk::AppBase
 {
 public:
-  vk::CommandBuffer computeCommandBuffer;
-  bool              m_submitComputeCommand = false;
   bool              m_isTestComputeShaderRunning = false;
   bool              m_printRenderingPerformance  = false;
   struct computeData
@@ -69,16 +67,17 @@ public:
   void                 createComputeBuffers(computeData& compData);
   void                 createCompDescriptors(computeData& data);
   void                 createCompPipelines(const std::string& filename, computeData& compData);
-  void                      executeComputeShaderPipline();
-  void                      submitComputeCommand();
+  void                 executeComputeShaderPipline_graphicsQueue();
+  void                 executeComputeShaderPipline_graphicsQueue(const vk::CommandBuffer& cmdBuf);
+  void                      executeComputeShaderPipline(const vk::CommandBuffer& cmdBuf);
+  void                      submitComputeCommand(const vk::CommandBuffer& cmdBuf);
   std::vector<computeData*> m_compDataList;
   computeData          m_computeA;
   bool                 isComputeShaderExecutionDone();
-  vk::Queue       m_queue_comp;
-  uint32_t        m_computeQueueIndex{VK_QUEUE_FAMILY_IGNORED};
-  vk::CommandPool m_cmdPool_comp;
   VkSemaphore               submissionSemaphore;
    
+ // VkQueue       g_gctQueue, g_computeQueue;
+ // VkCommandPool g_gctPool, g_computePool;
   void setup(nvvk::Context  &           vkctx);
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
