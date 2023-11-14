@@ -70,7 +70,7 @@ void renderUI(HelloVulkan& helloVk)
     ImGui::SameLine();
     ImGui::RadioButton("Infinite", &helloVk.m_pushConstant.lightType, 1);
 
-    ImGui::SliderFloat3("Position", &helloVk.m_pushConstant.lightPosition.x, -20.f, 20.f);
+    ImGui::SliderFloat3("Position", &helloVk.m_pushConstant.lightPosition.x, -50.f, 50.f);
     ImGui::SliderFloat("Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 150.f);
   }
 }
@@ -206,14 +206,14 @@ int main(int argc, char** argv)
 
   std::random_device              rd;  // Will be used to obtain a seed for the random number engine
   std::mt19937                    gen(rd());  // Standard mersenne_twister_engine seeded with rd()
-  std::normal_distribution<float> dis(1.0f, 1.0f);
-  std::normal_distribution<float> disn(0.05f, 0.05f);
-
-  for(int n = 0; n < 10; ++n)
+  std::normal_distribution<float> dis(5.0f, 5.0f);
+  std::normal_distribution<float> disn(0.5f, 0.5f);
+  int                             nbCubes = 1000;
+  for(int n = 0; n < nbCubes; ++n)
   {
     HelloVulkan::ObjInstance& inst = helloVk.m_objInstance.back();
     inst.txtOffset      = 0;
-    float         scale = 0.5;//fabsf(disn(gen));
+    float         scale = fabsf(disn(gen));// 0.5;
     nvmath::mat4f mat =
         nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});
     mat              = mat * nvmath::rotation_mat4_x(dis(gen));
@@ -269,8 +269,11 @@ int main(int argc, char** argv)
       ImGuiH::Panel::Begin();
       ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
       ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
+      
+      renderUI(helloVk);
       if(ImGui::CollapsingHeader("Test Async Compute", ImGuiTreeNodeFlags_DefaultOpen))
       {
+        ImGui::SliderInt("#Threads", &helloVk.m_threads, 1000000, 1000000000);
         ImGui::Text("Use for running Compute/Graphics cammand");
         ImGui::RadioButton("One Queue", &m_numberOfUsedQueues, 1);
         ImGui::SameLine();
@@ -283,7 +286,6 @@ int main(int argc, char** argv)
           }
         }
       }
-      renderUI(helloVk);
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
                   1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
       ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);

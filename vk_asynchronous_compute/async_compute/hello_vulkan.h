@@ -52,6 +52,7 @@ class HelloVulkan : public nvvk::AppBase
 public:
   bool              m_isTestComputeShaderRunning = false;
   bool              m_printRenderingPerformance  = false;
+  int             m_threads              = 1000000;
   struct computeData
   {
     nvvk::DescriptorSetBindings descSetLayoutBind;
@@ -68,7 +69,6 @@ public:
   void                 createCompDescriptors(computeData& data);
   void                 createCompPipelines(const std::string& filename, computeData& compData);
   void                 executeComputeShaderPipline_graphicsQueue();
-  void                 executeComputeShaderPipline_graphicsQueue(const vk::CommandBuffer& cmdBuf);
   void                      executeComputeShaderPipline(const vk::CommandBuffer& cmdBuf);
   void                      submitComputeCommand(const vk::CommandBuffer& cmdBuf);
   std::vector<computeData*> m_compDataList;

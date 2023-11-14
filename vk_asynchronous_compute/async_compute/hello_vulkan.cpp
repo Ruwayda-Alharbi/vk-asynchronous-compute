@@ -1105,15 +1105,15 @@ void HelloVulkan::executeComputeShaderPipline_graphicsQueue() {
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
   vk::CommandBuffer cmdBuf = cmdBufGet.createCommandBuffer();
 
-  cmdBuf.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+ // cmdBuf.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
   cmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, compData->pipeline);
   cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute, compData->pipelineLayout, 0,
                             {compData->descSet}, {});
-  auto numOfBlocks = ceil(float(9000000) / 64.0f);
+  auto numOfBlocks = ceil(float(m_threads) / 64.0f);
   cmdBuf.dispatch(numOfBlocks, 1, 1);
-  cmdBuf.end();
-
-  cmdBufGet.submitAndWait(cmdBuf);
+ // cmdBuf.end();
+  cmdBufGet.submit(cmdBuf, m_queue, compData->fence);
+ // cmdBufGet.submitAndWait(cmdBuf);
 
 }
   void HelloVulkan::executeComputeShaderPipline(const vk::CommandBuffer& cmdBuf)
@@ -1141,7 +1141,7 @@ void HelloVulkan::executeComputeShaderPipline_graphicsQueue() {
     cmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, compData->pipeline);
     cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute,
                                             compData->pipelineLayout, 0, {compData->descSet}, {});
-    auto numOfBlocks = ceil(float(9000000) / 64.0f);
+    auto numOfBlocks = ceil(float(m_threads) / 64.0f);
     cmdBuf.dispatch(numOfBlocks, 1, 1);
     cmdBuf.end();
     //==========================
@@ -1169,12 +1169,13 @@ void HelloVulkan::submitComputeCommand(const vk::CommandBuffer& cmdBuf)
 {
   //for(auto x : m_compDataList)
   //{
-    if(vkGetFenceStatus(m_device, m_compDataList[0]->fence) != VK_SUCCESS)
+    if(vkGetFenceStatus(m_device, m_compDataList[0]->fence) == VK_SUCCESS)
     {
-      return false;
+      vkResetFences(m_device, 1, &m_compDataList[0]->fence);
+      return true;
     }
   //}
     // Reset the compute fence
-    vkResetFences(m_device, 1, &m_compDataList[0]->fence);
-  return true;
+   
+  return false;
 }
