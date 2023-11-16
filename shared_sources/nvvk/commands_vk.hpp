@@ -164,11 +164,12 @@ public:
 
   // free cmdbuffers from this pool
   void destroy(size_t count, const VkCommandBuffer* cmds);
+  void submitAndWait(size_t count, const VkCommandBuffer* cmds, VkQueue queue, VkFence fence);
   void destroy(const std::vector<VkCommandBuffer>& cmds) { destroy(cmds.size(), cmds.data()); }
   void destroy(VkCommandBuffer cmd) { destroy(1, &cmd); }
 
   VkCommandPool getCommandPool() const { return m_commandPool; }
-
+ // VkQueue getQueue() const { return  m_queue; }
   // Ends command buffer recording and submits to queue, if 'fence' is not
   // VK_NULL_HANDLE, it will be used to signal the completion of the command
   // buffer execution. Does NOT destroy the command buffers! This is not
@@ -228,7 +229,6 @@ public:
   void submitAndWait(size_t count, const VkCommandBuffer* cmds) { submitAndWait(count, cmds, m_queue); }
   void submitAndWait(const std::vector<VkCommandBuffer>& cmds) { submitAndWait(cmds.size(), cmds.data(), m_queue); }
   void submitAndWait(VkCommandBuffer cmd) { submitAndWait(1, &cmd, m_queue); }
-  
 
 #ifdef VULKAN_HPP
   void destroy(size_t count, const vk::CommandBuffer* cmds) { destroy(count, (const VkCommandBuffer*)cmds); }
@@ -253,10 +253,10 @@ public:
     submitAndWait(cmds.size(), (const VkCommandBuffer*)cmds.data(), m_queue);
   }
 #endif
-
+  VkQueue       m_queue = VK_NULL_HANDLE;
 private:
   VkDevice      m_device      = VK_NULL_HANDLE;
-  VkQueue       m_queue       = VK_NULL_HANDLE;
+ // VkQueue       m_queue       = VK_NULL_HANDLE;
   VkCommandPool m_commandPool = VK_NULL_HANDLE;
 };
 

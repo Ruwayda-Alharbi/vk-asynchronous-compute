@@ -91,11 +91,6 @@ void HelloVulkan::setup(  nvvk::Context &            vkctx)
   m_debug.setup(m_device);
   m_offscreenDepthFormat = nvvk::findDepthFormat(m_physicalDevice);
 
-  /*m_computeQueueIndex = vkctx.m_queueC.familyIndex;
-  m_queue_comp        = m_device.getQueue(vkctx.m_queueC.familyIndex, 0);
-  m_cmdPool_comp = m_device.createCommandPool(
-      {vk::CommandPoolCreateFlagBits::eResetCommandBuffer, vkctx.m_queueC.familyIndex});
- */
   //===========================================================================
   m_commandBuffer_comp = m_device.allocateCommandBuffers(
       {m_cmdPool_comp, vk::CommandBufferLevel::ePrimary, 1})[0];
@@ -107,13 +102,7 @@ void HelloVulkan::setup(  nvvk::Context &            vkctx)
                                          name.c_str()});
 #endif  // _DEBUG
   //============================================================================
-  VkSemaphoreCreateInfo semaphoreInfo = {};
-  semaphoreInfo.sType                 = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-  if(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &submissionSemaphore) != VK_SUCCESS)
-  {
-    // Handle semaphore creation error
-  }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -278,22 +267,22 @@ void HelloVulkan::createGraphicsPipeline()
 }
 void HelloVulkan::createComputeShaderPipline()
 {
-  //computeData computeA;
+  computeData* computeA = new computeData();
   //computeData computeB;
-
-  m_computeA.queueIndex = m_computeQueueIndex;
+  m_compDataList.push_back(computeA);
+ // m_computeA.queueIndex = m_computeQueueIndex;
   //==================================
-  createComputeBuffers(m_computeA);
+  createComputeBuffers(computeA);
   // createComputeBuffers(m_computeQueueIndex, computeB.buffers);
 
-  createCompDescriptors(m_computeA);
+  createCompDescriptors(computeA);
   //createCompDescriptors(computeB);
 
-  createCompPipelines("spv/parallelTest.comp.spv", m_computeA);
+  createCompPipelines("spv/parallelTest.comp.spv", computeA);
   // createCompPipelines("spv/parallelTest.comp.spv", computeB);
   //computeB.queueIndex = m_computeQueueIndex;
 
-  m_compDataList.push_back(&m_computeA);
+ 
   for(auto compData : m_compDataList)
   {
     {
@@ -306,17 +295,7 @@ void HelloVulkan::createComputeShaderPipline()
       }
     }
 
-    std::vector<vk::WriteDescriptorSet>   writes;
-    std::vector<vk::DescriptorBufferInfo> dbiUnif =
-        std::vector<vk::DescriptorBufferInfo>(compData->buffers.size());
-    for(int i = 0; i < compData->buffers.size(); i++)
-    {
-      dbiUnif[i].setBuffer(compData->buffers[i].buffer);
-      dbiUnif[i].setOffset(0);
-      dbiUnif[i].setRange(VK_WHOLE_SIZE);
-      writes.emplace_back(compData->descSetLayoutBind.makeWrite(compData->descSet, i, &dbiUnif[i]));
-    }
-    m_device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+   
   }
 }
 //--------------------------------------------------------------------------------------------------
@@ -1049,58 +1028,76 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
   m_debug.endLabel(cmdBuf);
 }
 
-
-//============================
-void HelloVulkan::createComputeBuffers(computeData& compData)
+void HelloVulkan::printCounter()
 {
-  std::vector<int> aa;
-  std::vector<int> bb;
-  aa.reserve(200);
-  bb.reserve(200);
-  for(int i = 0; i < 200; i++)
-  {
-    aa.emplace_back(i);
-    bb.emplace_back(0);
-  }
+  auto compData             = m_compDataList[0];
+  auto counter = (*((uint64_t*)compData->buffers[0].data));
+  std::cout << "counter=" << counter << "\n";
 
+}  
+  void HelloVulkan::createComputeBuffers(computeData* compData)
+{
 
+     auto nbCounters = 1;
   // Creating all buffers
+   // Creating output buffers
   using vkBU = vk::BufferUsageFlagBits;
+  using vkMP = vk::MemoryPropertyFlagBits;
   auto cmdBuf = VulkanHelper::createCommandBuffer(m_device, m_cmdPool_comp);
-    compData.buffers.push_back(m_alloc.createBuffer(cmdBuf, aa, vkBU::eStorageBuffer));
-    compData.buffers.push_back(m_alloc.createBuffer(cmdBuf, bb, vkBU::eStorageBuffer));
+  compData->buffers.push_back(m_alloc.createBuffer(cmdBuf, std::vector<uint64_t>(nbCounters, 0),
+                                                  vkBU::eStorageBuffer, vkMP::eHostVisible));
     VulkanHelper::submitAndWait(m_device, 1, &cmdBuf, m_cmdPool_comp, m_queue_comp);
   
   m_alloc.finalizeAndReleaseStaging();
 }
-void HelloVulkan::createCompDescriptors(computeData& data)
+void HelloVulkan::createCompDescriptors(computeData* compData)
 {
-  for(int i = 0; i < data.buffers.size(); i++)
-    data.descSetLayoutBind.addBinding(vk::DescriptorSetLayoutBinding(
-        i, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute));
 
-  data.descSetLayout = data.descSetLayoutBind.createLayout(m_device);
-  data.descPool      = data.descSetLayoutBind.createPool(m_device, 1);
-  data.descSet       = nvvk::allocateDescriptorSet(m_device, data.descPool, data.descSetLayout);
+  compData->descSetLayoutBind.addBinding(
+      vk::DescriptorSetLayoutBinding(0, vk::DescriptorType::eStorageBuffer,
+                                    1, vk::ShaderStageFlagBits::eCompute));
+
+  compData->descSetLayout = compData->descSetLayoutBind.createLayout(m_device);
+  compData->descPool      = compData->descSetLayoutBind.createPool(m_device, 1);
+  compData->descSet =
+      nvvk::allocateDescriptorSet(m_device, compData->descPool, compData->descSetLayout);
 }
-void HelloVulkan::createCompPipelines(const std::string& filename, computeData& compData)
+void HelloVulkan::updateCompDescriptorSet(computeData* compData)
+{
+  std::vector<vk::WriteDescriptorSet>   writes;
+  vk::DescriptorBufferInfo            dbiUnif;
+ // for(int i = 0; i < compData->buffers.size(); i++)
+  {
+    dbiUnif.setBuffer(compData->buffers[0].buffer);
+    dbiUnif.setOffset(0);
+    dbiUnif.setRange(VK_WHOLE_SIZE);
+    writes.emplace_back(compData->descSetLayoutBind.makeWrite(compData->descSet, 0, &dbiUnif));
+  }
+  m_device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+
+  // Writing the information
+  m_device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+}
+void HelloVulkan::createCompPipelines(const std::string& filename, computeData* compData)
 {
   // pushing time
-  vk::PushConstantRange push_constants = {vk::ShaderStageFlagBits::eCompute, 0, sizeof(float)};
-  vk::PipelineLayoutCreateInfo layout_info{{}, 1, &compData.descSetLayout, 1, &push_constants};
-  compData.pipelineLayout = m_device.createPipelineLayout(layout_info);
+  vk::PushConstantRange        push_constants = {vk::ShaderStageFlagBits::eCompute, 0,
+                                          sizeof(PushConstant)};
+  vk::PipelineLayoutCreateInfo layout_info{{}, 1, &compData->descSetLayout, 1, &push_constants};
+  compData->pipelineLayout = m_device.createPipelineLayout(layout_info);
 
-  vk::ComputePipelineCreateInfo computePipelineCreateInfo{{}, {}, compData.pipelineLayout};
+  vk::ComputePipelineCreateInfo computePipelineCreateInfo{{}, {}, compData->pipelineLayout};
   computePipelineCreateInfo.stage =
       nvvk::createShaderStageInfo(m_device, nvh::loadFile(filename, true, defaultSearchPaths, true),
                                   VK_SHADER_STAGE_COMPUTE_BIT);
 
-  compData.pipeline = static_cast<const vk::Pipeline&>(
+  compData->pipeline = static_cast<const vk::Pipeline&>(
       m_device.createComputePipeline({}, computePipelineCreateInfo, nullptr));
 
   m_device.destroy(computePipelineCreateInfo.stage.module);
 }
 void HelloVulkan::executeComputeShaderPipline_graphicsQueue() {
+
   auto              compData = m_compDataList[0];
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
   vk::CommandBuffer cmdBuf = cmdBufGet.createCommandBuffer();
@@ -1109,16 +1106,28 @@ void HelloVulkan::executeComputeShaderPipline_graphicsQueue() {
   cmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, compData->pipeline);
   cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute, compData->pipelineLayout, 0,
                             {compData->descSet}, {});
-  auto numOfBlocks = ceil(float(m_threads) / 64.0f);
+  cmdBuf.pushConstants<PushConstant>(compData->pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0,
+                                     m_PushConstant);
+  auto numOfBlocks = ceil(float(m_PushConstant.m_threads) / 64.0f);
   cmdBuf.dispatch(numOfBlocks, 1, 1);
- // cmdBuf.end();
-  cmdBufGet.submit(cmdBuf, m_queue, compData->fence);
- // cmdBufGet.submitAndWait(cmdBuf);
+  cmdBufGet.submitAndWait(cmdBuf);
 
 }
-  void HelloVulkan::executeComputeShaderPipline(const vk::CommandBuffer& cmdBuf)
+void HelloVulkan::prepareComputeShader()
 {
-
+  auto compData = m_compDataList[0];
+  {
+    //========== reset counter  ===============
+    //reset counter
+    auto           nbCounters = 1;
+    auto           counters   = std::vector<uint64_t>(nbCounters, 0);
+    vk::DeviceSize bufferSize = counters.size() * sizeof(uint64_t);
+    memcpy(compData->buffers[0].data, counters.data(), (size_t)bufferSize);
+  }
+  updateCompDescriptorSet(compData);
+}
+  void HelloVulkan::executeComputeShaderPipline( vk::CommandBuffer& cmdBuf)
+{
  // for(int i = 0; i < m_compDataList.size(); i++)
   {
     auto compData = m_compDataList[0];
@@ -1139,29 +1148,31 @@ void HelloVulkan::executeComputeShaderPipline_graphicsQueue() {
     //cmdBuf.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
     cmdBuf.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
     cmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, compData->pipeline);
-    cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute,
-                                            compData->pipelineLayout, 0, {compData->descSet}, {});
-    auto numOfBlocks = ceil(float(m_threads) / 64.0f);
+    cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute, compData->pipelineLayout, 0,
+                              {compData->descSet}, {});
+    cmdBuf.pushConstants<PushConstant>(compData->pipelineLayout, vk::ShaderStageFlagBits::eCompute,
+                                       0, m_PushConstant);
+    auto numOfBlocks = ceil(float(m_PushConstant.m_threads) / 64.0f);
     cmdBuf.dispatch(numOfBlocks, 1, 1);
     cmdBuf.end();
-    //==========================
-    
+
+    submitComputeCommand(cmdBuf);
   }
 }
-void HelloVulkan::submitComputeCommand(const vk::CommandBuffer& cmdBuf)
+void HelloVulkan::submitComputeCommand( vk::CommandBuffer& cmdBuf)
 {
   {
-    vk::SubmitInfo computeSubmitInfo       = {};
-    computeSubmitInfo.sType                = vk::StructureType::eSubmitInfo;
+    VkSubmitInfo computeSubmitInfo         = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
     computeSubmitInfo.pNext                = nullptr;
     computeSubmitInfo.pWaitSemaphores      = nullptr;
     computeSubmitInfo.pSignalSemaphores    = nullptr;
     computeSubmitInfo.pWaitDstStageMask    = nullptr;
     computeSubmitInfo.signalSemaphoreCount = 0;
     computeSubmitInfo.waitSemaphoreCount   = 0;
+    computeSubmitInfo.commandBufferCount   = 1;
+    computeSubmitInfo.pCommandBuffers      = reinterpret_cast<VkCommandBuffer*>(&cmdBuf);
     auto compData                      = m_compDataList[0];
-    vkQueueSubmit(m_queue_comp, 1, reinterpret_cast<VkSubmitInfo*>(&computeSubmitInfo),
-                  compData->fence);
+    vkQueueSubmit(m_queue_comp, 1, &computeSubmitInfo, compData->fence);
   }
 
 }

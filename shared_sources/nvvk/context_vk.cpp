@@ -219,118 +219,118 @@ bool Context::init(const ContextCreateInfo& info)
 //
 bool Context::initInstance(const ContextCreateInfo& info)
 {
-  VkApplicationInfo applicationInfo{VK_STRUCTURE_TYPE_APPLICATION_INFO};
-  applicationInfo.pApplicationName = info.appTitle.c_str();
-  applicationInfo.pEngineName      = info.appEngine.c_str();
-  applicationInfo.apiVersion       = VK_MAKE_VERSION(info.apiMajor, info.apiMinor, 0);
+    VkApplicationInfo applicationInfo{ VK_STRUCTURE_TYPE_APPLICATION_INFO };
+    applicationInfo.pApplicationName = info.appTitle.c_str();
+    applicationInfo.pEngineName = info.appEngine.c_str();
+    applicationInfo.apiVersion = VK_MAKE_VERSION(info.apiMajor, info.apiMinor, 0);
 
-  m_apiMajor = info.apiMajor;
-  m_apiMinor = info.apiMinor;
+    m_apiMajor = info.apiMajor;
+    m_apiMinor = info.apiMinor;
 
-  uint32_t count = 0;
+    uint32_t count = 0;
 
-  if(info.verboseUsed)
-  {
-    uint32_t version;
-    VkResult result = vkEnumerateInstanceVersion(&version);
-    NVVK_CHECK(result);
-    LOGI("_______________\n");
-    LOGI("Vulkan Version:\n");
-    LOGI(" - available:  %d.%d.%d\n", VK_VERSION_MAJOR(version), VK_VERSION_MINOR(version), VK_VERSION_PATCH(version));
-    LOGI(" - requesting: %d.%d.%d\n", info.apiMajor, info.apiMinor, 0);
-  }
-
-  {
-    // Get all layers
-    auto layerProperties = getInstanceLayers();
-
-    if(fillFilteredNameArray(m_usedInstanceLayers, layerProperties, info.instanceLayers) != VK_SUCCESS)
+    if (info.verboseUsed)
     {
-      return false;
+        uint32_t version;
+        VkResult result = vkEnumerateInstanceVersion(&version);
+        NVVK_CHECK(result);
+        LOGI("_______________\n");
+        LOGI("Vulkan Version:\n");
+        LOGI(" - available:  %d.%d.%d\n", VK_VERSION_MAJOR(version), VK_VERSION_MINOR(version), VK_VERSION_PATCH(version));
+        LOGI(" - requesting: %d.%d.%d\n", info.apiMajor, info.apiMinor, 0);
     }
 
-    if(info.verboseAvailable)
     {
-      LOGI("___________________________\n");
-      LOGI("Available Instance Layers :\n");
-      for(auto it : layerProperties)
-      {
-        LOGI("%s (v. %d.%d.%d %x) : %s\n", it.layerName, VK_VERSION_MAJOR(it.specVersion),
-             VK_VERSION_MINOR(it.specVersion), VK_VERSION_PATCH(it.specVersion), it.implementationVersion, it.description);
-      }
+        // Get all layers
+        auto layerProperties = getInstanceLayers();
+
+        if (fillFilteredNameArray(m_usedInstanceLayers, layerProperties, info.instanceLayers) != VK_SUCCESS)
+        {
+            return false;
+        }
+
+        if (info.verboseAvailable)
+        {
+            LOGI("___________________________\n");
+            LOGI("Available Instance Layers :\n");
+            for (auto it : layerProperties)
+            {
+                LOGI("%s (v. %d.%d.%d %x) : %s\n", it.layerName, VK_VERSION_MAJOR(it.specVersion),
+                    VK_VERSION_MINOR(it.specVersion), VK_VERSION_PATCH(it.specVersion), it.implementationVersion, it.description);
+            }
+        }
     }
-  }
 
-  {
-    // Get all extensions
-    auto extensionProperties = getInstanceExtensions();
-
-    std::vector<void*> featureStructs;
-    if(fillFilteredNameArray(m_usedInstanceExtensions, extensionProperties, info.instanceExtensions, featureStructs) != VK_SUCCESS)
     {
-      return false;
+        // Get all extensions
+        auto extensionProperties = getInstanceExtensions();
+
+        std::vector<void*> featureStructs;
+        if (fillFilteredNameArray(m_usedInstanceExtensions, extensionProperties, info.instanceExtensions, featureStructs) != VK_SUCCESS)
+        {
+            return false;
+        }
+
+        if (info.verboseAvailable)
+        {
+            LOGI("\n");
+            LOGI("Available Instance Extensions :\n");
+            for (auto it : extensionProperties)
+            {
+                LOGI("%s (v. %d)\n", it.extensionName, it.specVersion);
+            }
+        }
     }
 
-    if(info.verboseAvailable)
+
+    if (info.verboseUsed)
     {
-      LOGI("\n");
-      LOGI("Available Instance Extensions :\n");
-      for(auto it : extensionProperties)
-      {
-        LOGI("%s (v. %d)\n", it.extensionName, it.specVersion);
-      }
+        LOGI("______________________\n");
+        LOGI("Used Instance Layers :\n");
+        for (const auto& it : m_usedInstanceLayers)
+        {
+            LOGI("%s\n", it.c_str());
+        }
+        LOGI("\n");
+        LOGI("Used Instance Extensions :\n");
+        for (const auto& it : m_usedInstanceExtensions)
+        {
+            LOGI("%s\n", it.c_str());
+        }
     }
-  }
 
 
-  if(info.verboseUsed)
-  {
-    LOGI("______________________\n");
-    LOGI("Used Instance Layers :\n");
-    for(const auto& it : m_usedInstanceLayers)
+    std::vector<const char*> usedInstanceLayers;
+    std::vector<const char*> usedInstanceExtensions;
+    for (const auto& it : m_usedInstanceExtensions)
     {
-      LOGI("%s\n", it.c_str());
+        usedInstanceExtensions.push_back(it.c_str());
     }
-    LOGI("\n");
-    LOGI("Used Instance Extensions :\n");
-    for(const auto& it : m_usedInstanceExtensions)
+    for (const auto& it : m_usedInstanceLayers)
     {
-      LOGI("%s\n", it.c_str());
+        usedInstanceLayers.push_back(it.c_str());
     }
-  }
 
+    VkInstanceCreateInfo instanceCreateInfo{ VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
+    instanceCreateInfo.pApplicationInfo = &applicationInfo;
+    instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(usedInstanceExtensions.size());
+    instanceCreateInfo.ppEnabledExtensionNames = usedInstanceExtensions.data();
+    instanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(usedInstanceLayers.size());
+    instanceCreateInfo.ppEnabledLayerNames = usedInstanceLayers.data();
+    instanceCreateInfo.pNext = info.instanceCreateInfoExt;
 
-  std::vector<const char*> usedInstanceLayers;
-  std::vector<const char*> usedInstanceExtensions;
-  for(const auto& it : m_usedInstanceExtensions)
-  {
-    usedInstanceExtensions.push_back(it.c_str());
-  }
-  for(const auto& it : m_usedInstanceLayers)
-  {
-    usedInstanceLayers.push_back(it.c_str());
-  }
+    NVVK_CHECK(vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance));
 
-  VkInstanceCreateInfo instanceCreateInfo{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
-  instanceCreateInfo.pApplicationInfo        = &applicationInfo;
-  instanceCreateInfo.enabledExtensionCount   = static_cast<uint32_t>(usedInstanceExtensions.size());
-  instanceCreateInfo.ppEnabledExtensionNames = usedInstanceExtensions.data();
-  instanceCreateInfo.enabledLayerCount       = static_cast<uint32_t>(usedInstanceLayers.size());
-  instanceCreateInfo.ppEnabledLayerNames     = usedInstanceLayers.data();
-  instanceCreateInfo.pNext                   = info.instanceCreateInfoExt;
-
-  NVVK_CHECK(vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance));
-
-  for(const auto& it : usedInstanceExtensions)
-  {
-    if(strcmp(it, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0)
+    for (const auto& it : usedInstanceExtensions)
     {
-      initDebugUtils();
-      break;
+        if (strcmp(it, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0)
+        {
+            initDebugUtils();
+            break;
+        }
     }
-  }
 
-  return true;
+    return true;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1176,6 +1176,7 @@ std::vector<VkExtensionProperties> Context::getInstanceExtensions()
   extensionProperties.resize(count);
   NVVK_CHECK(vkEnumerateInstanceExtensionProperties(nullptr, &count, extensionProperties.data()));
   extensionProperties.resize(std::min(extensionProperties.size(), size_t(count)));
+
   return extensionProperties;
 }
 

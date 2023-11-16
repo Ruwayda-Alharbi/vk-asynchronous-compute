@@ -1,3 +1,4 @@
+#include "commands_vk.hpp"
 /* Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -175,8 +176,6 @@ void CommandPool::destroy(size_t count, const VkCommandBuffer* cmds)
 {
   vkFreeCommandBuffers(m_device, m_commandPool, (uint32_t)count, cmds);
 }
-
-
 
 void CommandPool::submitAndWait(size_t count, const VkCommandBuffer* cmds, VkQueue queue)
 {

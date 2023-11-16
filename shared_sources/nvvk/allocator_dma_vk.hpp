@@ -93,10 +93,10 @@ namespace nvvk {
 // Objects
 struct BufferDma
 {
-  VkBuffer     buffer = VK_NULL_HANDLE;
-  AllocationID allocation;
-  void* data = nullptr;
-  size_t size{ 0 };
+    VkBuffer     buffer = VK_NULL_HANDLE;
+    AllocationID allocation;
+    void* data = nullptr;
+    size_t size{ 0 };
 };
 
 struct ImageDma

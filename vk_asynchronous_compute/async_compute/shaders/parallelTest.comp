@@ -1,57 +1,58 @@
-#version 460 
-#extension GL_EXT_debug_printf : require
-#extension GL_EXT_scalar_block_layout : enable
+#version 460
 
+#extension GL_EXT_debug_printf : require
+
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_ARB_shader_clock : enable
+
+#extension GL_NV_shader_atomic_int64 : require
+#extension GL_ARB_gpu_shader_int64 :  enable
+
+#extension GL_KHR_vulkan_glsl : enable
+#extension GL_ARB_gpu_shader5 : enable
+#extension NV_shader_buffer_store : enable
+
+#extension GL_EXT_shader_16bit_storage :  enable
+#extension GL_EXT_shader_8bit_storage  :  enable
 
 layout(local_size_x = 64 , local_size_y = 1, local_size_z = 1) in;
 
-
-
-layout(binding = 0, scalar) buffer a_
+struct CompPushConstant
 {
-  int a[];
+    uint64_t m_threads;
 };
-layout(binding = 1, scalar) buffer b_
-{
-  int b[];
-};
+layout(push_constant) uniform _PushConstant { CompPushConstant pushC;};
 
+layout(binding = 0, scalar) buffer _Counter{uint64_t counter[];}; 
 void main()
 {
     uint id=gl_GlobalInvocationID.x;
-   
- 
-  // if(id==100)
-   {
-     //debugPrintfEXT("Hello from invocation no.%d, a=%d",id,a[id] );
-   }
-
-
+    if(id>=pushC.m_threads)
+      return;
+    
     for (int j = 0; j < 1000; j++)
     {
         for (int i = 0; i < 1000; i++)
         {
-            //atomicAdd(b[id], a[id]);
-            b[id]=a[id]+1;
-            //barrier();
-           // memoryBarrierShared();
+           atomicAdd(counter[0], uint64_t(1));
         }
     }
+  
+   
 
 }
 
 
 /*
 
- for (int j = 0; j < 10000000; j++)
-    {
-        for (int i = 0; i < 10000000; i++)
-        {
-            //atomicAdd(b[id], a[id]);
-            b[id]=a[id]+1;
-            //barrier();
-           // memoryBarrierShared();
-        }
-    }
+ //============================================
+    
+
+    // if(id==100)
+   {
+     //debugPrintfEXT("Hello from invocation no.%d, a=%d",id,a[id] );
+   }
 
     */

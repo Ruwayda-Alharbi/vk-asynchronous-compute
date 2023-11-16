@@ -119,9 +119,9 @@ int main(int argc, char** argv)
       std::string(PROJECT_NAME),
   };
 
-  // Requesting Vulkan extensions and layers
   nvvk::ContextCreateInfo contextInfo(true);
   contextInfo.setVersion(1, 2);
+ // =============  Requesting Vulkan extensions and layers  ================================
   contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);
   contextInfo.addInstanceExtension(VK_KHR_SURFACE_EXTENSION_NAME);
   contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);
@@ -131,9 +131,12 @@ int main(int argc, char** argv)
   contextInfo.addInstanceExtension(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
   contextInfo.addInstanceExtension(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
 #endif
-  contextInfo.addInstanceExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+  // Display
   contextInfo.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-  contextInfo.addDeviceExtension(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME);
+
+  // Ray tracing
+  contextInfo.addInstanceExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+  //contextInfo.addDeviceExtension(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME);
@@ -148,7 +151,49 @@ int main(int argc, char** argv)
   vk::PhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature;
   contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false,
                                  &rtPipelineFeature);
+  vk::PhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures =
+      VkPhysicalDeviceRayQueryFeaturesKHR{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
+  contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME, false, &rayQueryFeatures);
+  // Semaphores - interop Vulkan/Cuda
+  /* contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
+   // contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_FENCE_EXTENSION_NAME);
+#ifdef WIN32
+  //  contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
+   // contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
+   // contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_FENCE_WIN32_EXTENSION_NAME);
+#else
+   // contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
+  //  contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
+   // contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_FENCE_FD_EXTENSION_NAME);
+#endif
+    // Synchronization (mix of timeline and binary semaphores)
+   // contextInfo.addDeviceExtension(VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, false);
+   // contextInfo.addDeviceExtension(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME, false);
 
+   // contextInfo.addDeviceExtension(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);*/
+
+  //Atomic operation
+  contextInfo.addDeviceExtension(VK_KHR_SHADER_ATOMIC_INT64_EXTENSION_NAME);
+
+  // Buffer - interop
+  // contextInfo.addDeviceExtension(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
+  contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
+  //Shader - Debug Printf.
+  contextInfo.addDeviceExtension(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
+  // Shader - random number
+  vk::PhysicalDeviceShaderClockFeaturesKHR clockFeatures;
+  clockFeatures.shaderSubgroupClock = true;
+  contextInfo.addDeviceExtension(VK_KHR_SHADER_CLOCK_EXTENSION_NAME, false, &clockFeatures);
+  //================== END Vulkan extensions   =========================
+  VkValidationFeaturesEXT validationInfo =
+      VkValidationFeaturesEXT{VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT};
+  VkValidationFeatureEnableEXT validationFeatureToEnable =
+      VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT;
+  validationInfo.enabledValidationFeatureCount = 1;
+  validationInfo.pEnabledValidationFeatures    = &validationFeatureToEnable;
+  contextInfo.instanceCreateInfoExt            = &validationInfo;
+
+  contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
   // Creating Vulkan base application
   nvvk::Context vkctx{};
   vkctx.initInstance(contextInfo);
@@ -273,43 +318,31 @@ int main(int argc, char** argv)
       renderUI(helloVk);
       if(ImGui::CollapsingHeader("Test Async Compute", ImGuiTreeNodeFlags_DefaultOpen))
       {
-        ImGui::SliderInt("#Threads", &helloVk.m_threads, 1000000, 1000000000);
+        static int x = 2;
+        static int y = 0;
+        static int z = 0;
+        ImGui::SliderInt("t1", &x, 0, 100);
+        ImGui::SliderInt("t2", &y, 0, 1000);
+        ImGui::SliderInt("t3", &z, 0, 1000000000);
+        helloVk.m_PushConstant.m_threads = x + y + z;
+        ImGui::Text("#Threads = %d", helloVk.m_PushConstant.m_threads);
+        ImGui::Separator();
         ImGui::Text("Use for running Compute/Graphics cammand");
         ImGui::RadioButton("One Queue", &m_numberOfUsedQueues, 1);
         ImGui::SameLine();
         ImGui::RadioButton("Two Queues", &m_numberOfUsedQueues, 2);
-        if(!m_runTestComputeShader)
+        if(ImGui::Button("Run Compute Shader"))
         {
-          if(ImGui::Button("Run Compute Shader"))
-          {
-            m_runTestComputeShader = true;
-          }
+           m_runTestComputeShader = true;
+           clearColor             = nvmath::vec4f(1, 0, 0, 1.00f);
         }
+        
       }
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
                   1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
       ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
       ImGuiH::Panel::End();
     }
-   
-    //==============================================
-    const vk::CommandBuffer& cmdBuf_comp = helloVk.getCompCommandBuffer();
-    if(m_runTestComputeShader && !helloVk.m_isTestComputeShaderRunning)
-    {
-      clearColor = nvmath::vec4f(1, 0, 0, 1.00f);
-      if(m_numberOfUsedQueues == 2)
-      {
-        helloVk.executeComputeShaderPipline(cmdBuf_comp);
-        helloVk.submitComputeCommand(cmdBuf_comp);
-      }
-      else
-      {
-
-        helloVk.executeComputeShaderPipline_graphicsQueue();
-      }
-      helloVk.m_isTestComputeShaderRunning = true;
-    }
-    //============================================
     // Start rendering the scene
     helloVk.prepareFrame();
     // Start command buffer of this frame
@@ -372,15 +405,49 @@ int main(int argc, char** argv)
     // Submit for display
     cmdBuf.end();
     helloVk.submitFrame();
-    //=====================================
-    if(helloVk.m_isTestComputeShaderRunning)
+    //==============================================
+    if(m_runTestComputeShader)
     {
-      // helloVk.m_printRenderingPerformance = true;
+
+      helloVk.m_isTestComputeShaderRunning = true;
+      m_runTestComputeShader               = false;
+    }
+    else if(helloVk.m_isTestComputeShaderRunning)
+    {
+      try
+      {
+
+        helloVk.m_isTestComputeShaderRunning = false;
+        helloVk.m_waitingComputeShaderFence  = false;
+        helloVk.prepareComputeShader();
+        if(m_numberOfUsedQueues == 2)
+        {
+
+          helloVk.executeComputeShaderPipline(helloVk.getCompCommandBuffer());
+          helloVk.m_waitingComputeShaderFence = true;
+        }
+        else
+        {
+          helloVk.executeComputeShaderPipline_graphicsQueue();
+          clearColor = nvmath::vec4f(1, 1, 1, 1.00f);
+          helloVk.printCounter();
+        }
+      }
+      catch(std::exception& e)
+      {
+        const char* what = e.what();
+        LOGE("There was an error: %s \n", what);
+        exit(1);
+      }
+    }
+    //=====================================
+    if(helloVk.m_waitingComputeShaderFence)
+    {
       if(helloVk.isComputeShaderExecutionDone() == true)
       {
         clearColor                           = nvmath::vec4f(1, 1, 1, 1.00f);
-        helloVk.m_isTestComputeShaderRunning = false;
-        m_runTestComputeShader               = false;
+        helloVk.printCounter();
+        helloVk.m_waitingComputeShaderFence  = false;
       }
     }
   }

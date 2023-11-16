@@ -50,9 +50,14 @@
 class HelloVulkan : public nvvk::AppBase
 {
 public:
+  struct PushConstant
+  {
+    uint64_t m_threads;
+  };
+  PushConstant      m_PushConstant;
   bool              m_isTestComputeShaderRunning = false;
+  bool            m_waitingComputeShaderFence = false;
   bool              m_printRenderingPerformance  = false;
-  int             m_threads              = 1000000;
   struct computeData
   {
     nvvk::DescriptorSetBindings descSetLayoutBind;
@@ -65,16 +70,19 @@ public:
     uint32_t                    queueIndex;
     VkFence                     fence;
   };
-  void                 createComputeBuffers(computeData& compData);
-  void                 createCompDescriptors(computeData& data);
-  void                 createCompPipelines(const std::string& filename, computeData& compData);
-  void                 executeComputeShaderPipline_graphicsQueue();
-  void                      executeComputeShaderPipline(const vk::CommandBuffer& cmdBuf);
-  void                      submitComputeCommand(const vk::CommandBuffer& cmdBuf);
+  void                      printCounter();
+  void                      createComputeBuffers(computeData* compData);
+  void                      createCompDescriptors(computeData* data);
+  void                      updateCompDescriptorSet(computeData* data);
+  void                 createCompPipelines(const std::string& filename, computeData* compData);
+  void                      executeComputeShaderPipline_graphicsQueue();
+  void                      prepareComputeShader();
+  void                      executeComputeShaderPipline( vk::CommandBuffer& cmdBuf);
+  void                      submitComputeCommand( vk::CommandBuffer& cmdBuf);
   std::vector<computeData*> m_compDataList;
-  computeData          m_computeA;
+ // computeData          m_computeA;
   bool                 isComputeShaderExecutionDone();
-  VkSemaphore               submissionSemaphore;
+  //VkSemaphore               submissionSemaphore;
    
  // VkQueue       g_gctQueue, g_computeQueue;
  // VkCommandPool g_gctPool, g_computePool;
