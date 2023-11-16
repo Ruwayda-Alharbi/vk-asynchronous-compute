@@ -28,7 +28,9 @@
 // ImGui - standalone example application for Glfw + Vulkan, using programmable
 // pipeline If you are new to ImGui, see examples/README.txt and documentation
 // at the top of imgui.cpp.
-
+// setprecision example
+#include <iostream>     // std::cout, std::fixed
+#include <iomanip>      // std::setprecision
 #include <array>
 #include <random>
 #include <vulkan/vulkan.hpp>
@@ -74,7 +76,25 @@ void renderUI(HelloVulkan& helloVk)
     ImGui::SliderFloat("Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 150.f);
   }
 }
+//=================================================================
+void getWindowTitle(std::stringstream& windowTitle)
+{
+  windowTitle << "Nanomatrix: ";
 
+  {
+    auto latestFPS = ImGui::GetIO().Framerate;
+    windowTitle << std::setprecision(3) << latestFPS << " fps";
+  }
+
+  // Set indicator in the title bar for frame modified
+  //windowTitle << (frame->isModified() ? "*" : "");
+}
+void updateTitleBar(GLFWwindow* window)
+{
+  std::stringstream windowTitle;
+  getWindowTitle(windowTitle);
+  glfwSetWindowTitle(window, windowTitle.str().c_str());
+}
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -154,24 +174,6 @@ int main(int argc, char** argv)
   vk::PhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures =
       VkPhysicalDeviceRayQueryFeaturesKHR{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
   contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME, false, &rayQueryFeatures);
-  // Semaphores - interop Vulkan/Cuda
-  /* contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
-   // contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_FENCE_EXTENSION_NAME);
-#ifdef WIN32
-  //  contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
-   // contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
-   // contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_FENCE_WIN32_EXTENSION_NAME);
-#else
-   // contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
-  //  contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
-   // contextInfo.addDeviceExtension(VK_KHR_EXTERNAL_FENCE_FD_EXTENSION_NAME);
-#endif
-    // Synchronization (mix of timeline and binary semaphores)
-   // contextInfo.addDeviceExtension(VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, false);
-   // contextInfo.addDeviceExtension(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME, false);
-
-   // contextInfo.addDeviceExtension(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);*/
-
   //Atomic operation
   contextInfo.addDeviceExtension(VK_KHR_SHADER_ATOMIC_INT64_EXTENSION_NAME);
 
@@ -297,9 +299,18 @@ int main(int argc, char** argv)
   helloVk.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
 
+  int counter = 0;
   // Main loop
   while(!glfwWindowShouldClose(window))
   {
+    updateTitleBar(window);
+    if(counter >= 10 && !helloVk.m_waitingComputeShaderFence)
+    {
+      clearColor             = nvmath::vec4f(1, 0, 0, 1);
+      counter                = -1;
+    }
+    else
+      counter++;
     glfwPollEvents();
     if(helloVk.isMinimized())
       continue;
@@ -318,12 +329,12 @@ int main(int argc, char** argv)
       renderUI(helloVk);
       if(ImGui::CollapsingHeader("Test Async Compute", ImGuiTreeNodeFlags_DefaultOpen))
       {
-        static int x = 2;
-        static int y = 0;
-        static int z = 0;
-        ImGui::SliderInt("t1", &x, 0, 100);
+        static int x = 1000;
+        static int y = 1000;
+        static int z = 1000;
+        ImGui::SliderInt("t1", &x, 0, 1000);
         ImGui::SliderInt("t2", &y, 0, 1000);
-        ImGui::SliderInt("t3", &z, 0, 1000000000);
+        ImGui::SliderInt("t3", &z, 0, 1000);
         helloVk.m_PushConstant.m_threads = x + y + z;
         ImGui::Text("#Threads = %d", helloVk.m_PushConstant.m_threads);
         ImGui::Separator();
@@ -331,11 +342,11 @@ int main(int argc, char** argv)
         ImGui::RadioButton("One Queue", &m_numberOfUsedQueues, 1);
         ImGui::SameLine();
         ImGui::RadioButton("Two Queues", &m_numberOfUsedQueues, 2);
-        if(ImGui::Button("Run Compute Shader"))
-        {
-           m_runTestComputeShader = true;
-           clearColor             = nvmath::vec4f(1, 0, 0, 1.00f);
-        }
+        //if(ImGui::Button("Run Compute Shader"))
+        //{
+        //   m_runTestComputeShader = true;
+        //   clearColor             = nvmath::vec4f(1, 0, 0, 1.00f);
+        //}
         
       }
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
@@ -406,13 +417,14 @@ int main(int argc, char** argv)
     cmdBuf.end();
     helloVk.submitFrame();
     //==============================================
-    if(m_runTestComputeShader)
-    {
+   // if(m_runTestComputeShader)
+/*    {
 
       helloVk.m_isTestComputeShaderRunning = true;
       m_runTestComputeShader               = false;
     }
-    else if(helloVk.m_isTestComputeShaderRunning)
+    else if(helloVk.m_isTestComputeShaderRunning)*/ 
+    if(counter == 0)
     {
       try
       {
@@ -429,8 +441,8 @@ int main(int argc, char** argv)
         else
         {
           helloVk.executeComputeShaderPipline_graphicsQueue();
-          clearColor = nvmath::vec4f(1, 1, 1, 1.00f);
-          helloVk.printCounter();
+          clearColor = nvmath::vec4f(1, 1, 1, 1);
+          //helloVk.printCounter();
         }
       }
       catch(std::exception& e)
@@ -445,8 +457,8 @@ int main(int argc, char** argv)
     {
       if(helloVk.isComputeShaderExecutionDone() == true)
       {
-        clearColor                           = nvmath::vec4f(1, 1, 1, 1.00f);
-        helloVk.printCounter();
+        clearColor                           = nvmath::vec4f(1, 1, 1, 1);
+        //helloVk.printCounter();
         helloVk.m_waitingComputeShaderFence  = false;
       }
     }
