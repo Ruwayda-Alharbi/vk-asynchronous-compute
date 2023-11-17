@@ -90,8 +90,9 @@ void HelloVulkan::setup(  nvvk::Context &            vkctx)
 #endif
   m_debug.setup(m_device);
   m_offscreenDepthFormat = nvvk::findDepthFormat(m_physicalDevice);
-
+  m_PushConstant.use_atomic = 0;
   //===========================================================================
+
   m_commandBuffer_comp = m_device.allocateCommandBuffers(
       {m_cmdPool_comp, vk::CommandBufferLevel::ePrimary, 1})[0];
  // computeCommandBuffer = VulkanHelper::createCommandBuffer(m_device, m_cmdPool_comp);
@@ -1102,7 +1103,7 @@ void HelloVulkan::executeComputeShaderPipline_graphicsQueue() {
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
   vk::CommandBuffer cmdBuf = cmdBufGet.createCommandBuffer();
 
- // cmdBuf.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+  cmdBuf.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
   cmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, compData->pipeline);
   cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute, compData->pipelineLayout, 0,
                             {compData->descSet}, {});
@@ -1126,26 +1127,14 @@ void HelloVulkan::prepareComputeShader()
   }
   updateCompDescriptorSet(compData);
 }
-  void HelloVulkan::executeComputeShaderPipline( vk::CommandBuffer& cmdBuf)
+void HelloVulkan::executeComputeShaderPipline(vk::CommandBuffer& cmdBuf)
 {
+    m_debug.beginLabel(cmdBuf, "Compute Shader :)");
  // for(int i = 0; i < m_compDataList.size(); i++)
   {
     auto compData = m_compDataList[0];
-    //nvvk::CommandPool genCmdBuf(m_device, m_compDataList[i]->queueIndex);
-    /*vk::CommandBuffer cmdBuf;
-
-    if(m_compDataList[i]->queueIndex == m_graphicsQueueIndex)
-    {
-      cmdBuf = VulkanHelper::createCommandBuffer(m_device, m_cmdPool);
-     // cmdBuf = genCmdBuf.createCommandBuffer(m_cmdPool);
-    }
-    else if(m_compDataList[i]->queueIndex == m_computeQueueIndex)
-    {
-      //cmdBuf = genCmdBuf.createCommandBuffer(m_cmdPool_comp);
-      cmdBuf = VulkanHelper::createCommandBuffer(m_device, m_cmdPool_comp);
-    }*/
-
-    //cmdBuf.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+ 
+   // cmdBuf.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
     cmdBuf.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
     cmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, compData->pipeline);
     cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute, compData->pipelineLayout, 0,
@@ -1157,6 +1146,7 @@ void HelloVulkan::prepareComputeShader()
     cmdBuf.end();
 
     submitComputeCommand(cmdBuf);
+    m_debug.endLabel(cmdBuf);
   }
 }
 void HelloVulkan::submitComputeCommand( vk::CommandBuffer& cmdBuf)
@@ -1173,20 +1163,21 @@ void HelloVulkan::submitComputeCommand( vk::CommandBuffer& cmdBuf)
     computeSubmitInfo.pCommandBuffers      = reinterpret_cast<VkCommandBuffer*>(&cmdBuf);
     auto compData                      = m_compDataList[0];
     vkQueueSubmit(m_queue_comp, 1, &computeSubmitInfo, compData->fence);
+   // vkQueueSubmit(m_queue_comp, 1, &computeSubmitInfo, VK_NULL_HANDLE);
   }
 
 }
   bool HelloVulkan::isComputeShaderExecutionDone()
 {
-  //for(auto x : m_compDataList)
-  //{
+  
     if(vkGetFenceStatus(m_device, m_compDataList[0]->fence) == VK_SUCCESS)
     {
+      // Reset the compute fence
       vkResetFences(m_device, 1, &m_compDataList[0]->fence);
       return true;
     }
-  //}
-    // Reset the compute fence
-   
-  return false;
+    else
+      return false;
+
+  //return true;
 }

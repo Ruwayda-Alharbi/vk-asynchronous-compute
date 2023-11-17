@@ -22,6 +22,7 @@ layout(local_size_x = 64 , local_size_y = 1, local_size_z = 1) in;
 struct CompPushConstant
 {
     uint64_t m_threads;
+    int use_atomic;
 };
 layout(push_constant) uniform _PushConstant { CompPushConstant pushC;};
 
@@ -36,7 +37,15 @@ void main()
     {
         for (int i = 0; i < 1000; i++)
         {
-           atomicAdd(counter[0], uint64_t(1));
+          if(pushC.use_atomic==1)
+          {
+               atomicAdd(counter[0], uint64_t(1));
+          }
+          else
+          {
+               int x=900+ int(counter[0]);
+          }
+         
         }
     }
   

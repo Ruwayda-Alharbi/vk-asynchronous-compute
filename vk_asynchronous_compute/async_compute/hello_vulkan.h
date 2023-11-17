@@ -53,6 +53,7 @@ public:
   struct PushConstant
   {
     uint64_t m_threads;
+    int      use_atomic;
   };
   PushConstant      m_PushConstant;
   bool              m_isTestComputeShaderRunning = false;

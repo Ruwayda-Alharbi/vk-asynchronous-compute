@@ -30,6 +30,7 @@
 // at the top of imgui.cpp.
 // setprecision example
 #include <iostream>     // std::cout, std::fixed
+#include <thread>
 #include <iomanip>      // std::setprecision
 #include <array>
 #include <random>
@@ -79,11 +80,11 @@ void renderUI(HelloVulkan& helloVk)
 //=================================================================
 void getWindowTitle(std::stringstream& windowTitle)
 {
-  windowTitle << "Nanomatrix: ";
-
   {
+    auto project_name       = std::string(PROJECT_NAME);
+   // auto averageFPS = 1000.0f / ImGui::GetIO().Framerate;
     auto latestFPS = ImGui::GetIO().Framerate;
-    windowTitle << std::setprecision(3) << latestFPS << " fps";
+    windowTitle << project_name << " : " << std::setprecision(3) << latestFPS << " fps";
   }
 
   // Set indicator in the title bar for frame modified
@@ -100,6 +101,11 @@ void updateTitleBar(GLFWwindow* window)
 //////////////////////////////////////////////////////////////////////////
 static int const SAMPLE_WIDTH  = 1280;
 static int const SAMPLE_HEIGHT = 720;
+void             myFunction(HelloVulkan* helloVk, vk::CommandBuffer& cmdBuf_compute)
+{
+  // Code to be executed in the thread
+  helloVk->executeComputeShaderPipline(cmdBuf_compute);
+}
 
 //--------------------------------------------------------------------------------------------------
 // Application Entry
@@ -196,6 +202,7 @@ int main(int argc, char** argv)
   contextInfo.instanceCreateInfoExt            = &validationInfo;
 
   contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+  //contextInfo.addInstanceExtension(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
   // Creating Vulkan base application
   nvvk::Context vkctx{};
   vkctx.initInstance(contextInfo);
@@ -255,7 +262,7 @@ int main(int argc, char** argv)
   std::mt19937                    gen(rd());  // Standard mersenne_twister_engine seeded with rd()
   std::normal_distribution<float> dis(5.0f, 5.0f);
   std::normal_distribution<float> disn(0.5f, 0.5f);
-  int                             nbCubes = 1000;
+  int                             nbCubes = 100;
   for(int n = 0; n < nbCubes; ++n)
   {
     HelloVulkan::ObjInstance& inst = helloVk.m_objInstance.back();
@@ -294,23 +301,16 @@ int main(int argc, char** argv)
   bool          useRaytracer = true;
 
   
-  bool m_runTestComputeShader = false;
+  bool m_runTestComputeShader = true;
+  //bool use_cpu_multithread    = false;
   int m_numberOfUsedQueues = 2;
   helloVk.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
 
-  int counter = 0;
   // Main loop
   while(!glfwWindowShouldClose(window))
   {
     updateTitleBar(window);
-    if(counter >= 10 && !helloVk.m_waitingComputeShaderFence)
-    {
-      clearColor             = nvmath::vec4f(1, 0, 0, 1);
-      counter                = -1;
-    }
-    else
-      counter++;
     glfwPollEvents();
     if(helloVk.isMinimized())
       continue;
@@ -324,17 +324,18 @@ int main(int argc, char** argv)
     {
       ImGuiH::Panel::Begin();
       ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
-      ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
+      //ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
       
-      renderUI(helloVk);
+      //renderUI(helloVk);
       if(ImGui::CollapsingHeader("Test Async Compute", ImGuiTreeNodeFlags_DefaultOpen))
       {
+        ImGui::Checkbox("use atomic op", (bool*)&helloVk.m_PushConstant.use_atomic);
         static int x = 1000;
-        static int y = 1000;
-        static int z = 1000;
+        static int y = 0;
+        static int z = 0;
         ImGui::SliderInt("t1", &x, 0, 1000);
-        ImGui::SliderInt("t2", &y, 0, 1000);
-        ImGui::SliderInt("t3", &z, 0, 1000);
+        ImGui::SliderInt("t2", &y, 0, 10000);
+        ImGui::SliderInt("t3", &z, 0, 100000);
         helloVk.m_PushConstant.m_threads = x + y + z;
         ImGui::Text("#Threads = %d", helloVk.m_PushConstant.m_threads);
         ImGui::Separator();
@@ -349,7 +350,7 @@ int main(int argc, char** argv)
         //}
         
       }
-      ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+      ImGui::Text("Application average %.3f ms/frame (%.3f FPS)",
                   1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
       ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
       ImGuiH::Panel::End();
@@ -359,7 +360,8 @@ int main(int argc, char** argv)
     // Start command buffer of this frame
     auto                     curFrame = helloVk.getCurFrame();
     const vk::CommandBuffer& cmdBuf   = helloVk.getCommandBuffers()[curFrame];
-    
+    vk::CommandBuffer& cmdBuf_compute = helloVk.getCompCommandBuffer();
+
     cmdBuf.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 
     // Updating camera buffer
@@ -417,14 +419,15 @@ int main(int argc, char** argv)
     cmdBuf.end();
     helloVk.submitFrame();
     //==============================================
-   // if(m_runTestComputeShader)
-/*    {
-
+    if(m_runTestComputeShader)
+    {
+     
       helloVk.m_isTestComputeShaderRunning = true;
       m_runTestComputeShader               = false;
+      clearColor                           = nvmath::vec4f(1, 0, 0, 1);
     }
-    else if(helloVk.m_isTestComputeShaderRunning)*/ 
-    if(counter == 0)
+    else if(helloVk.m_isTestComputeShaderRunning) 
+    //if(counter == 0)
     {
       try
       {
@@ -434,15 +437,27 @@ int main(int argc, char** argv)
         helloVk.prepareComputeShader();
         if(m_numberOfUsedQueues == 2)
         {
+          //if(use_cpu_multithread)
+          //{
+          //  // Create a thread and pass the function to be executed
+          //  std::thread myThread(myFunction, &helloVk, cmdBuf_compute);
+          //  myThread.detach();
+          //}
+          //else
+          {
+            helloVk.executeComputeShaderPipline(cmdBuf_compute);
+          }
 
-          helloVk.executeComputeShaderPipline(helloVk.getCompCommandBuffer());
           helloVk.m_waitingComputeShaderFence = true;
         }
         else
         {
+          
+
           helloVk.executeComputeShaderPipline_graphicsQueue();
           clearColor = nvmath::vec4f(1, 1, 1, 1);
           //helloVk.printCounter();
+          m_runTestComputeShader = true;
         }
       }
       catch(std::exception& e)
@@ -460,6 +475,7 @@ int main(int argc, char** argv)
         clearColor                           = nvmath::vec4f(1, 1, 1, 1);
         //helloVk.printCounter();
         helloVk.m_waitingComputeShaderFence  = false;
+        m_runTestComputeShader              = true;
       }
     }
   }
@@ -468,7 +484,6 @@ int main(int argc, char** argv)
   helloVk.getDevice().waitIdle();
   helloVk.destroyResources();
   helloVk.destroy();
-
   vkctx.deinit();
 
   glfwDestroyWindow(window);
