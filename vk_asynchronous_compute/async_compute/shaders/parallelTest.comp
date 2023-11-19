@@ -32,6 +32,7 @@ void main()
     uint id=gl_GlobalInvocationID.x;
     if(id>=pushC.m_threads)
       return;
+
     
     for (int j = 0; j < 1000; j++)
     {
@@ -43,7 +44,7 @@ void main()
           }
           else
           {
-               int x=900+ int(counter[0]);
+               int x=900+ 10;//int(counter[0]);
           }
          
         }

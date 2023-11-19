@@ -254,22 +254,26 @@ int main(int argc, char** argv)
   //helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true));
 
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
+
+ // helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/armadillo.obj", defaultSearchPaths, true));
+  //helloVk.loadModel(nvh::findFile("media/scenes/lucy.obj", defaultSearchPaths, true));
   
-  helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
   helloVk.createComputeShaderPipline();
 
   std::random_device              rd;  // Will be used to obtain a seed for the random number engine
   std::mt19937                    gen(rd());  // Standard mersenne_twister_engine seeded with rd()
-  std::normal_distribution<float> dis(5.0f, 5.0f);
+  std::normal_distribution<float> dis(50.0f, 50.0f);
   std::normal_distribution<float> disn(0.5f, 0.5f);
   int                             nbCubes = 100;
   for(int n = 0; n < nbCubes; ++n)
   {
     HelloVulkan::ObjInstance& inst = helloVk.m_objInstance.back();
     inst.txtOffset      = 0;
-    float         scale = fabsf(disn(gen));// 0.5;
+    float         scale =  0.5;
+   // float         scale            = fabsf(disn(gen));  
     nvmath::mat4f mat =
-        nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});
+        nvmath::translation_mat4(nvmath::vec3f{dis(gen), 50.0f + dis(gen), dis(gen)});
     mat              = mat * nvmath::rotation_mat4_x(dis(gen));
     mat              = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
     inst.transform   = mat;
@@ -298,7 +302,7 @@ int main(int argc, char** argv)
 
 
   nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
-  bool          useRaytracer = true;
+  bool          useRaytracer = false;
 
   
   bool m_runTestComputeShader = true;
@@ -307,10 +311,12 @@ int main(int argc, char** argv)
   helloVk.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
 
+  int counter = 0;
   // Main loop
   while(!glfwWindowShouldClose(window))
   {
     updateTitleBar(window);
+    counter++;
     glfwPollEvents();
     if(helloVk.isMinimized())
       continue;
@@ -324,7 +330,7 @@ int main(int argc, char** argv)
     {
       ImGuiH::Panel::Begin();
       ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
-      //ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
+      ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
       
       //renderUI(helloVk);
       if(ImGui::CollapsingHeader("Test Async Compute", ImGuiTreeNodeFlags_DefaultOpen))
@@ -431,7 +437,7 @@ int main(int argc, char** argv)
     {
       try
       {
-
+        counter                              = 0;
         helloVk.m_isTestComputeShaderRunning = false;
         helloVk.m_waitingComputeShaderFence  = false;
         helloVk.prepareComputeShader();
@@ -468,8 +474,9 @@ int main(int argc, char** argv)
       }
     }
     //=====================================
-    if(helloVk.m_waitingComputeShaderFence)
+    if(helloVk.m_waitingComputeShaderFence && counter>=10)
     {
+      counter = 0;
       if(helloVk.isComputeShaderExecutionDone() == true)
       {
         clearColor                           = nvmath::vec4f(1, 1, 1, 1);
@@ -477,6 +484,7 @@ int main(int argc, char** argv)
         helloVk.m_waitingComputeShaderFence  = false;
         m_runTestComputeShader              = true;
       }
+     
     }
   }
 

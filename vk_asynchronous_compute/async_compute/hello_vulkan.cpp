@@ -327,7 +327,7 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
   ObjModel model;
   model.nbIndices  = static_cast<uint32_t>(loader.m_indices.size());
   model.nbVertices = static_cast<uint32_t>(loader.m_vertices.size());
-
+  std::cout << "nbVertices=" << model.nbVertices<<std::endl;
   // Create the buffers on Device and copy vertices, indices and materials
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
   vk::CommandBuffer cmdBuf = cmdBufGet.createCommandBuffer();
